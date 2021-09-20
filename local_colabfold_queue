@@ -1,0 +1,145 @@
+#!/apps/local/cpclab/colabfold/colabfold/colabfold-conda/bin/python3.7
+import os, sys
+import argparse
+
+logo = """
+
+▄▄▌         ▄▄·  ▄▄▄· ▄▄▌                                     
+██•  ▪     ▐█ ▌▪▐█ ▀█ ██•                                     
+██▪   ▄█▀▄ ██ ▄▄▄█▀▀█ ██▪                                     
+▐█▌▐▌▐█▌.▐▌▐███▌▐█ ▪▐▌▐█▌▐▌                                   
+.▀▀▀  ▀█▄▀▪·▀▀▀  ▀  ▀ .▀▀▀                                    
+             ▄▄·       ▄▄▌   ▄▄▄· ▄▄▄▄· ·▄▄▄      ▄▄▌  ·▄▄▄▄  
+            ▐█ ▌▪▪     ██•  ▐█ ▀█ ▐█ ▀█▪▐▄▄·▪     ██•  ██▪ ██ 
+            ██ ▄▄ ▄█▀▄ ██▪  ▄█▀▀█ ▐█▀▀█▄██▪  ▄█▀▄ ██▪  ▐█· ▐█▌
+            ▐███▌▐█▌.▐▌▐█▌▐▌▐█ ▪▐▌██▄▪▐███▌.▐█▌.▐▌▐█▌▐▌██. ██ 
+            ·▀▀▀  ▀█▄▀▪.▀▀▀  ▀  ▀ ·▀▀▀▀ ▀▀▀  ▀█▄▀▪.▀▀▀ ▀▀▀▀▀• 
+
+"""
+
+if os.isatty(sys.stdin.fileno()):
+    print(logo)
+
+script_path = os.path.abspath(os.path.dirname(__file__))+os.path.sep
+
+parser = argparse.ArgumentParser(prog="local_colabfold", formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Local wrapper for ColabFold based on https://github.com/sokrypton/ColabFold and https://github.com/YoshitakaMo/localcolabfold. This is a very early wrapper version of a very early test phase modification of AlphaFold, so problems are to be expected. For questions ask me in Discord or send me an email (s.schott@fz-juelich.de). No warranties!")
+parser.add_argument("-O","--overwrite",action="store_true",help="Overwrite previous results. Otherwise, try to resume were left off")
+parser.add_argument("-s","--seq",required=True,type=str,help="Sequence to be modelled. It can be separated by '/' for intra-chain beaks and ':' for oligomers. Can be parsed from a .fasta file")
+parser.add_argument("--oligo",type=str,default="1",help="Number of homooligomers per sequence. Should match number of ':' separated sequences and separated by ':' as well, or a single number that will be applied to all of them. Ex. 2:1 for a dimer and a monomer")
+parser.add_argument("-n","--name",default="LCF",type=str,help="Job name. Change if rerunning same seq in same folder with different parameters")
+parser.add_argument("-r","--max_recycles",type=int,default=3, choices=[1,3,6,12,24,48],help="Number of recycles to improve model. Relevant for oligomeric assemblies and difficult folds.")
+
+parser.add_argument("--max_msa",type=str,default="512:1024", choices=["512:1024", "256:512", "128:256", "64:128", "32:64"], help="defines: `max_msa_clusters:max_extra_msa` number of sequences to use. Lowering will reduce GPU requirements, but may result in poor model quality.")
+parser.add_argument("--num_relax",type=str,default="None", choices=["Top1","Top5","All","None"],help="Number of models to be FF relaxed. Top1, Top5 or All.")
+parser.add_argument("--num_samples",type=int,default=1, choices=[1,2,4,8,16,32],help="Number of samples by using different random seeds")
+parser.add_argument("--num_models",type=int,default=5, choices=[1,2,3,4,5],help="Number of samples by using different random seeds")
+parser.add_argument("-t","--tol",type=str,default="0.1", choices=["0","0.1","0.5","1"],help="Tolerance for finishing recycles.")
+parser.add_argument("--rank_by",type=str,default="pLDDT",choices=["pLDDT","pTMscore"], help="Which metric to use for final ranking. pTMscore might help to score oligomerix assemblies")
+parser.add_argument("--pair_msa",action="store_true",help="Generate paired MSA. Useful for heterocomplexes.")
+parser.add_argument("--no_unpair_msa",action="store_true",help="Remove unpaired MSA. For oligomers, unpaired MSAs are used by default.")
+parser.add_argument("--not_turbo",action="store_true",help="Not use colabfold turbo behaviour (some mods to reduce memory usage), and use default AlphaFold.")
+args = parser.parse_args()
+
+# define sequence
+import re
+if args.seq.endswith(".fasta"):
+    print(f"Reading {args.seq} as a fasta file")
+    with open(args.seq,"r") as handle:
+        sequence = ""
+        for line in handle.readlines():
+            if line.startswith(">"):
+                continue
+            sequence += line.strip()
+    args.seq = sequence
+    print(f"Using {sequence} as the input sequence")
+else:
+    sequence = args.seq
+
+sequence = re.sub("[^A-Z:/]", "", sequence.upper())
+sequence = re.sub(":+",":",sequence)
+sequence = re.sub("/+","/",sequence)
+
+jobname = args.name #@param {type:"string"}
+jobname = re.sub(r'\W+', '', jobname)
+
+# define number of copies
+homooligomer =  args.oligo #@param {type:"string"}
+homooligomer = re.sub("[:/]+",":",homooligomer)
+if len(homooligomer) == 0: homooligomer = "1"
+homooligomer = re.sub("[^0-9:]", "", homooligomer)
+homooligomers = [int(h) for h in homooligomer.split(":")]
+
+#@markdown - `sequence` Specify protein sequence to be modelled.
+#@markdown  - Use `/` to specify intra-protein chainbreaks (for trimming regions within protein).
+#@markdown  - Use `:` to specify inter-protein chainbreaks (for modeling protein-protein hetero-complexes).
+#@markdown  - For example, sequence `AC/DE:FGH` will be modelled as polypeptides: `AC`, `DE` and `FGH`. A seperate MSA will be generates for `ACDE` and `FGH`.
+#@markdown    If `pair_msa` is enabled, `ACDE`'s MSA will be paired with `FGH`'s MSA.
+#@markdown - `homooligomer` Define number of copies in a homo-oligomeric assembly.
+#@markdown  - Use `:` to specify different homooligomeric state (copy numer) for each component of the complex.
+#@markdown  - For example, **sequence:**`ABC:DEF`, **homooligomer:** `2:1`, the first protein `ABC` will be modeled as a homodimer (2 copies) and second `DEF` a monomer (1 copy).
+
+ori_sequence = sequence
+sequence = sequence.replace("/","").replace(":","")
+seqs = ori_sequence.replace("/","").split(":")
+
+if len(seqs) != len(homooligomers):
+  if len(homooligomers) == 1:
+    homooligomers = [homooligomers[0]] * len(seqs)
+    homooligomer = ":".join([str(h) for h in homooligomers])
+  else:
+    while len(seqs) > len(homooligomers):
+      homooligomers.append(1)
+    homooligomers = homooligomers[:len(seqs)]
+    homooligomer = ":".join([str(h) for h in homooligomers])
+    print("WARNING: Mismatch between number of breaks ':' in 'sequence' and 'homooligomer' definition")
+
+full_sequence = "".join([s*h for s,h in zip(seqs,homooligomers)])
+
+MIN_SEQUENCE_LENGTH = 16
+MAX_SEQUENCE_LENGTH = 2500
+
+aatypes = set('ACDEFGHIKLMNPQRSTVWY')  # 20 standard aatypes
+if not set(full_sequence).issubset(aatypes):
+  raise Exception(f'Input sequence contains non-amino acid letters: {set(sequence) - aatypes}. AlphaFold only supports 20 standard amino acids as inputs.')
+if len(full_sequence) < MIN_SEQUENCE_LENGTH:
+  raise Exception(f'Input sequence is too short: {len(full_sequence)} amino acids, while the minimum is {MIN_SEQUENCE_LENGTH}')
+#if len(full_sequence) > MAX_SEQUENCE_LENGTH:
+#  raise Exception(f'Input sequence is too long: {len(full_sequence)} amino acids, while the maximum is {MAX_SEQUENCE_LENGTH}. Please use the full AlphaFold system for long sequences.')
+
+#if len(full_sequence) > 1400:
+#  print(f"WARNING: For a typical Google-Colab-GPU (16G) session, the max total length is ~1400 residues. You are at {len(full_sequence)}! Run Alphafold may crash.")
+
+
+import argunparse
+from string import Template
+unparser = argunparse.ArgumentUnparser()
+replace_dict = {}
+arg_dir      = vars(args)
+arg_dir["slurm"] = False
+replace_dict["args"]  = unparser.unparse(**arg_dir)
+replace_dict["name"]  = arg_dir["name"]
+replace_dict["folder"] = os.getcwd()
+replace_dict["node_ex"] = "None"
+replace_dict["colabfold"] = script_path
+
+# Estimate max memory usage. Fully empirical!
+max_mem         = 10**(0.000181095*len(full_sequence)+10.1709)
+max_GPU_mem     = max_mem*0.3
+gpu_memories    = [6,8,11,24]
+node_selections = ["","node-[08,19-24]","node-[07-09,10-14,19-24]","node-[01-14,19-24]"]
+replace_dict["mem"] = int(max_mem/10**9)
+for i, nodes in enumerate(node_selections):
+  if max_GPU_mem < gpu_memories[i]*10**9:
+      replace_dict["node_ex"] = nodes
+      break
+if replace_dict["node_ex"] == "None":
+  raise Exception("Sequence length too big for available nodes!")
+
+with open(replace_dict["name"]+"_colabfold.slurm","w") as handle:
+  with open(script_path+"/slurm.temp","r") as slurm_temp:
+    template = Template(slurm_temp.read())
+    handle.write(template.substitute(replace_dict))
+print("Submit the following file to slurm with SBATCH: %s" % (replace_dict["name"]+"_colabfold.slurm"))
+
+exit()
+

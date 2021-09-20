@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH --job-name=colab_$name
+#SBATCH --ntasks=1
+#SBATCH --mem=${mem}G
+#SBATCH --output=colab_out.%j
+#SBATCH --error=colab_out.%j
+#SBATCH --time=24:00:00
+#SBATCH --partition=gpu-ser
+#SBATCH --exclude="$node_ex"
+#SBATCH --gres=gpu:1
+#
+# --- Prepare environment
+#
+
+echo "------------------------------------------------------------"
+echo "Job-ID               = $$SLURM_JOB_ID"
+echo "Host                 = $$SLURMD_NODENAME"
+echo "Nodelist             = $$SLURM_JOB_NODELIST"
+echo "Nodes                = $$SLURM_JOB_NUM_NODES"
+echo "GPUs                 = $$CUDA_VISIBLE_DEVICES"
+echo "Submission Directory = $$SLURM_SUBMIT_DIR"
+echo "------------------------------------------------------------" 
+
+eval "$$($colabfold/conda/bin/conda shell.bash hook)"
+conda activate $colabfold/colabfold-conda
+
+if [ ! -d $folder ]
+then
+echo "Folder does not exist. Check it."
+exit
+fi
+
+cd $folder
+
+ln -s $colabfold/* .
+
+export TF_FORCE_UNIFIED_MEMORY='1'
+export XLA_PYTHON_CLIENT_MEM_FRACTION='4.0'
+
+colabfold-conda/bin/python3.7 local_colabfold.py $args
+
+find . -maxdepth 1 -type l -delete
