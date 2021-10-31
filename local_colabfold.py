@@ -30,6 +30,7 @@ parser.add_argument("-n","--name",default="LCF",type=str,help="Job name. Change 
 parser.add_argument("-r","--max_recycles",type=int,default=3, choices=[1,3,6,12,24,48],help="Number of recycles to improve model. Relevant for oligomeric assemblies and difficult folds.")
 
 parser.add_argument("--max_msa",type=str,default="512:1024", choices=["512:1024", "256:512", "128:256", "64:128", "32:64"], help="defines: `max_msa_clusters:max_extra_msa` number of sequences to use. Lowering will reduce GPU requirements, but may result in poor model quality.")
+parser.add_argument("--only_msa", action="store_true", help="Will only do the MSA search. Useful to not block a GPU in the meanwhile")
 parser.add_argument("--num_relax",type=str,default="None", choices=["Top1","Top5","All","None"],help="Number of models to be FF relaxed. Top1, Top5 or All.")
 parser.add_argument("--num_samples",type=int,default=1, choices=[1,2,4,8,16,32],help="Number of samples by using different random seeds")
 parser.add_argument("--num_models",type=int,default=5, choices=[1,2,3,4,5],help="Number of samples by using different random seeds")
@@ -510,6 +511,9 @@ else:
 if not os.path.exists(os.path.join(output_dir,"msa.pickle")):
   pickle.dump({"msas":msas,"deletion_matrices":deletion_matrices},
               open(os.path.join(output_dir,"msa.pickle"),"wb"))
+
+if args.only_msa:
+  exit()
 
 #########################################
 # Merge and filter
