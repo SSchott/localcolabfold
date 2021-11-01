@@ -98,10 +98,11 @@ echo "Downloading runner.py"
 
 echo "Change permissions..."
 find ${COLABFOLDDIR} -type d -exec chmod 755 {} +
-chmod +x local_colabfold_queue
+chmod +x ${COLABFOLDDIR}/local_colabfold_queue
+chmod +x ${COLABFOLDDIR}/local_colabfold.py
 
 echo "Adding shebangs..."
-echo "#!${COLABFOLDDIR}/colabfold-conda/bin/python3.7  " 1<> local_colabfold_queue
-echo "#!${COLABFOLDDIR}/colabfold-conda/bin/python3.7  " 1<> local_colabfold.py
+echo "#!${COLABFOLDDIR}/colabfold-conda/bin/python3.7  " 1<> ${COLABFOLDDIR}/local_colabfold_queue
+echo "#!${COLABFOLDDIR}/colabfold-conda/bin/python3.7  " 1<> ${COLABFOLDDIR}/local_colabfold.py
 
 echo "Installation of Alphafold2_advanced finished."
