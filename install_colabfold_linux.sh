@@ -96,4 +96,12 @@ echo "Downloading runner.py"
 (cd ${COLABFOLDDIR} && wget -q "https://raw.githubusercontent.com/SSchott/localcolabfold/main/local_colabfold.py")
 (cd ${COLABFOLDDIR} && wget -q "https://raw.githubusercontent.com/SSchott/localcolabfold/main/local_colabfold_queue")
 
+echo "Change permissions..."
+find ${COLABFOLDDIR} -type d -exec chmod 755 {} +
+chmod +x local_colabfold_queue
+
+echo "Adding shebangs..."
+echo "#!${COLABFOLDDIR}/colabfold-conda/bin/python3.7  " 1<> local_colabfold_queue
+echo "#!${COLABFOLDDIR}/colabfold-conda/bin/python3.7  " 1<> local_colabfold.py
+
 echo "Installation of Alphafold2_advanced finished."
