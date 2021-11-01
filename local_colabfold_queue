@@ -1,4 +1,4 @@
-#!/apps/local/cpclab/colabfold/colabfold/colabfold-conda/bin/python3.7
+#!SHEBANG
 import os, sys
 import argparse
 
