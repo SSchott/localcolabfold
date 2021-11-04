@@ -136,11 +136,16 @@ for i, nodes in enumerate(node_selections):
 if replace_dict["node_ex"] == "None":
   raise Exception("Sequence length too big for available nodes!")
 
-with open(replace_dict["name"]+"_colabfold.slurm","w") as handle:
+with open(replace_dict["name"]+"_gpu_colabfold.slurm","w") as handle:
   with open(script_path+"/slurm.temp","r") as slurm_temp:
     template = Template(slurm_temp.read())
     handle.write(template.substitute(replace_dict))
-print("Submit the following file to slurm with SBATCH: %s" % (replace_dict["name"]+"_colabfold.slurm"))
+with open(replace_dict["name"]+"_msa_colabfold.slurm","w") as handle:
+  with open(script_path+"/slurm.temp","r") as slurm_temp:
+    template = Template(slurm_temp.read())
+    replace_dict["args"]  = replace_dict["args"]+" --only_msa"
+    handle.write(template.substitute(replace_dict))
+print("Submit the following files to slurm with SBATCH: %s" % (replace_dict["name"]+"_msa_colabfold.slurm",replace_dict["name"]+"_gpu_colabfold.slurm"))
 
 exit()
 
