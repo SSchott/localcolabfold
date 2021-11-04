@@ -141,11 +141,11 @@ with open(replace_dict["name"]+"_gpu_colabfold.slurm","w") as handle:
     template = Template(slurm_temp.read())
     handle.write(template.substitute(replace_dict))
 with open(replace_dict["name"]+"_msa_colabfold.slurm","w") as handle:
-  with open(script_path+"/slurm.temp","r") as slurm_temp:
+  with open(script_path+"/slurm_cpu.temp","r") as slurm_temp:
     template = Template(slurm_temp.read())
     replace_dict["args"]  = replace_dict["args"]+" --only_msa"
     handle.write(template.substitute(replace_dict))
-print("Submit the following files to slurm with SBATCH: %s" % (replace_dict["name"]+"_msa_colabfold.slurm",replace_dict["name"]+"_gpu_colabfold.slurm"))
+print("Submit the following files to slurm with SBATCH: %s %s" % (replace_dict["name"]+"_msa_colabfold.slurm",replace_dict["name"]+"_gpu_colabfold.slurm"))
 
 exit()
 
