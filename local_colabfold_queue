@@ -136,16 +136,20 @@ for i, nodes in enumerate(node_selections):
 if replace_dict["node_ex"] == "None":
   raise Exception("Sequence length too big for available nodes!")
 
-with open(replace_dict["name"]+"_gpu_colabfold.slurm","w") as handle:
-  with open(script_path+"/slurm.temp","r") as slurm_temp:
-    template = Template(slurm_temp.read())
-    handle.write(template.substitute(replace_dict))
+if not args.only_msa:
+  with open(replace_dict["name"]+"_gpu_colabfold.slurm","w") as handle:
+    with open(script_path+"/slurm.temp","r") as slurm_temp:
+      template = Template(slurm_temp.read())
+      handle.write(template.substitute(replace_dict))
 with open(replace_dict["name"]+"_msa_colabfold.slurm","w") as handle:
   with open(script_path+"/slurm_cpu.temp","r") as slurm_temp:
     template = Template(slurm_temp.read())
     replace_dict["args"]  = replace_dict["args"]+" --only_msa"
     handle.write(template.substitute(replace_dict))
 print("Submit the following files to slurm with SBATCH: %s %s" % (replace_dict["name"]+"_msa_colabfold.slurm",replace_dict["name"]+"_gpu_colabfold.slurm"))
+print("Example:")
+print("MSA_JOB=$(sbatch --parsable %s)" % (replace_dict["name"]+"_msa_colabfold.slurm"))
+print("sbatch --dependency=afterok:${MSA_JOB} %s" % (replace_dict["name"]+"_gpu_colabfold.slurm")) 
 
 exit()
 
